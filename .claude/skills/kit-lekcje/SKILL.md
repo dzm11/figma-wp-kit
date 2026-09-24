@@ -39,7 +39,7 @@ w zestawie zrób `git diff` i przeczytaj go pod tym kątem.
   w frameworku.
 - W zestawie, jeśli `projekt.json.kit.sciezka` wskazuje istniejące
   repozytorium frameworka:
-  1. `git -C {sciezka} switch -c lekcje-{klient}-{data}`.
+  1. `git -C {sciezka} switch -c lekcje-projekt-{litera}-{data}`.
   2. Wprowadź zmiany tam, gdzie lekcja zapobiega problemowi: skill fazy,
      brief, reguły mobile, narzędzie w `tools/` (z testem), `CLAUDE.md`.
      Lekcja zapisana tylko w `LEKCJE.md` niczemu nie zapobiega.
