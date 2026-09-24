@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run:*)",
+      "Bash(npx wp-env:*)",
+      "Bash(npx playwright:*)",
+      "Bash(node tools/:*)",
+      "Bash(node --test:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(curl -s:*)",
+      "Bash(curl -sI:*)"
+    ],
+    "ask": [
+      "Bash(npm run deploy:*)",
+      "Bash(bash tools/deploy.sh:*)"
+    ]
+  }
+}

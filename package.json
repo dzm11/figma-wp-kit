@@ -1,0 +1,39 @@
+{
+  "name": "figma-wp-kit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Zestaw startowy do przenoszenia stron z Figmy do WordPressa",
+  "scripts": {
+    "setup": "node tools/setup.mjs",
+    "sprawdz": "node tools/preflight.mjs",
+    "env:start": "wp-env start",
+    "env:stop": "wp-env stop",
+    "env:destroy": "wp-env destroy",
+    "wp": "wp-env run cli wp",
+    "php:install": "wp-env run cli --env-cwd=wp-content/themes/fwp-motyw composer install",
+    "lint:php": "wp-env run cli --env-cwd=wp-content/themes/fwp-motyw vendor/bin/phpcs",
+    "lint:mu": "wp-env run cli --env-cwd=wp-content/themes/fwp-motyw vendor/bin/phpcs --standard=phpcs.xml /var/www/html/wp-content/mu-plugins",
+    "test:unit": "node --test \"tools/**/*.test.mjs\"",
+    "test:e2e": "playwright test",
+    "tokens": "node tools/tokens-to-css.mjs",
+    "figma:ref": "node tools/figma-export.mjs",
+    "figma:assets": "node tools/figma-assets.mjs",
+    "images": "node tools/optimize-images.mjs",
+    "fonts": "node tools/fetch-fonts.mjs",
+    "parity": "node tools/parity.mjs",
+    "agentation": "node tools/agentation/build.mjs",
+    "deploy": "bash tools/deploy.sh"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@wordpress/env": "^11.15.0",
+    "agentation": "^3.1.1",
+    "esbuild": "^0.28.2",
+    "pixelmatch": "^7.2.0",
+    "pngjs": "^7.0.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "sharp": "^0.35.4"
+  }
+}

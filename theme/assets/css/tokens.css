@@ -1,0 +1,34 @@
+/*
+ * PLIK GENEROWANY — nie edytuj ręcznie.
+ * Źródło: docs/figma/tokens.json
+ * Generator: tools/tokens-to-css.mjs (npm run tokens)
+ * Dane z szablonu — tokeny nie zostały jeszcze wyciągnięte z Figmy.
+ */
+
+:root {
+  /* Prymitywy — używane wyłącznie w aliasach poniżej */
+  --fwp-neutral-950: #0a0a0a;
+
+  /* Kolory semantyczne — tych używaj w kodzie */
+  --fwp-text-primary: var(--fwp-neutral-950);
+
+  /* Kroje i wagi */
+  --fwp-font-family-inter: 'Inter', sans-serif;
+  --fwp-font-family-body: var(--fwp-font-family-inter);
+  --fwp-font-regular: 400;
+
+  /* Typografia */
+  --fwp-t-text-md-family: var(--fwp-font-family-inter);
+  --fwp-t-text-md-size: 1rem;
+  --fwp-t-text-md-lh: 1.5;
+  --fwp-t-text-md-ls: 0em;
+  --fwp-t-text-md-weight: 400;
+
+  /* Odstępy */
+  --fwp-space-16: 1rem;
+
+  /* Layout */
+  --fwp-container: 1280px;
+  --fwp-gutter: 24px;
+  --fwp-wrapper: 1440px;
+}

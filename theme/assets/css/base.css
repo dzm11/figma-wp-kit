@@ -1,0 +1,175 @@
+/**
+ * Warstwa bazowa: reset, ustawienia body i narzędzia dostępności.
+ *
+ * Ładowana po tokens.css (i fonts.css, jeśli istnieje) — korzysta z ich
+ * zmiennych --fwp-*. Każde odwołanie do tokenu ma neutralną wartość zapasową,
+ * żeby pusty motyw renderował się czytelnie jeszcze przed `npm run tokens`.
+ *
+ * Zero !important poza blokiem prefers-reduced-motion na końcu pliku.
+ *
+ * Deklaracje @font-face pism klienta trzymaj w assets/css/fonts.css
+ * (ładowany automatycznie przez inc/assets.php). Klasy typograficzne
+ * (.fwp-t-heading-xl, .fwp-t-text-md…) dopisz tutaj na bazie tokenów
+ * --fwp-t-{styl}-size / -lh / -ls / -weight z tokens.css — po jednej klasie
+ * na styl tekstu z Figmy, bez wartości wpisanych z palca.
+ */
+
+/* --------------------------------------------------------------------- */
+/* Reset                                                                  */
+/* --------------------------------------------------------------------- */
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html {
+	-webkit-text-size-adjust: 100%;
+	text-size-adjust: 100%;
+}
+
+body,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+figure,
+blockquote {
+	margin: 0;
+}
+
+/* --------------------------------------------------------------------- */
+/* Ustawienia body                                                        */
+/* --------------------------------------------------------------------- */
+
+body {
+	background-color: var(--fwp-bg-default, Canvas);
+	color: var(--fwp-text-primary, CanvasText);
+	font-family: var(--fwp-font-family-body, system-ui, -apple-system, 'Segoe UI', sans-serif);
+	font-size: var(--fwp-t-text-md-size, 1rem);
+	font-weight: var(--fwp-font-regular, 400);
+	line-height: var(--fwp-t-text-md-lh, 1.5);
+	-webkit-font-smoothing: antialiased;
+	text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+	font-family: var(--fwp-font-family-heading, inherit);
+}
+
+/* --------------------------------------------------------------------- */
+/* Reset — media i formularze                                            */
+/* --------------------------------------------------------------------- */
+
+img,
+picture,
+video,
+canvas,
+svg {
+	display: block;
+	max-width: 100%;
+}
+
+/* Obraz z jawnymi width/height skaluje się proporcjonalnie, zamiast rozciągać. */
+img {
+	height: auto;
+}
+
+input,
+button,
+textarea,
+select {
+	font: inherit;
+}
+
+:focus-visible {
+	outline: 2px solid var(--fwp-border-brand, Highlight);
+	outline-offset: 2px;
+}
+
+/* --------------------------------------------------------------------- */
+/* Narzędzia dostępności                                                  */
+/* --------------------------------------------------------------------- */
+
+.fwp-visually-hidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+/*
+ * Link pomijający nawigację (header.php, na każdej stronie).
+ *
+ * Stan spoczynkowy to ten sam wzorzec co .fwp-visually-hidden, a nie
+ * display:none/visibility:hidden — te usunęłyby element z kolejności fokusu.
+ * :focus przywraca pełną widoczność nad całą treścią, żeby użytkownik
+ * klawiatury zobaczył, gdzie wylądował fokus.
+ */
+.fwp-skip-link {
+	position: absolute;
+	top: 0;
+	left: 0;
+	z-index: 1000; /* musi być nad nagłówkiem i całą resztą strony */
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+	background-color: var(--fwp-bg-default, Canvas);
+	color: var(--fwp-text-primary, CanvasText);
+	/*
+	 * Bez paddingu w stanie spoczynkowym: przy box-sizing: border-box padding
+	 * nie mieści się w polu 1×1 px, więc przeglądarka wymusiłaby realny rozmiar
+	 * równy sumie paddingów i link przestałby być ukryty. Padding dochodzi
+	 * dopiero w stanie :focus, razem z pełnym rozmiarem.
+	 */
+	padding: 0;
+}
+
+.fwp-skip-link:focus {
+	width: auto;
+	height: auto;
+	overflow: visible;
+	clip-path: none;
+	white-space: normal;
+	padding: var(--fwp-space-16, 1rem) var(--fwp-space-24, 1.5rem);
+}
+
+/* --------------------------------------------------------------------- */
+/* Ikony (sprite assets/img/icons.svg, zob. fwp_icon())                   */
+/* --------------------------------------------------------------------- */
+
+.fwp-icon {
+	width: 1em;
+	height: 1em;
+	flex: none;
+	fill: currentColor;
+}
+
+/* --------------------------------------------------------------------- */
+/* Ograniczony ruch — jedyne miejsce, w którym wolno użyć !important      */
+/* --------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		/* Wyłączenie animacji musi wygrać z każdą regułą sekcji, stąd wymuszenie nadrzędności. */
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
+}

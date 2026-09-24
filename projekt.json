@@ -1,0 +1,29 @@
+{
+  "skonfigurowany": false,
+  "klient": "",
+  "slug": "fwp-motyw",
+  "prefiks": "fwp",
+  "urlLokalny": "http://localhost:8888",
+  "figma": {
+    "fileKey": "",
+    "strona": "",
+    "stronaGlowna": {
+      "desktop": null,
+      "mobile": null
+    },
+    "ramki": {
+      "desktop": null,
+      "mobile": null
+    }
+  },
+  "szerokosciTestowe": {
+    "mobile": 393,
+    "tablet": 1024,
+    "desktop": 1440,
+    "wide": 1920
+  },
+  "kit": {
+    "sciezka": "~/figma-wp-kit",
+    "wersja": "0.1.0"
+  }
+}

@@ -1,0 +1,14 @@
+node_modules/
+.DS_Store
+wp-content/
+.wp-env.override.json
+.env
+.env.deploy
+theme/vendor/
+theme/composer.lock
+test-results/
+playwright-report/
+tools/__diff__/
+docs/figma/ref/*.png
+theme/assets/js/agentation.bundle.js
+design-assets/raw/

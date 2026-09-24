@@ -1,0 +1,89 @@
+/*
+ * Siatka strony.
+ *
+ * Trzy warstwy jak w typowej makiecie z Figmy: viewport → wrapper (ramka
+ * strony, np. 1820 z gutterem 50 przy 1920) → kontener treści (np. 1480).
+ * Liczby pochodzą z tokenów --fwp-wrapper, --fwp-container i --fwp-gutter
+ * generowanych z docs/figma/tokens.json.
+ *
+ * Zasady, od których nie ma odstępstw:
+ * - Gutter jest WCIĘCIEM RAMKI (węższa szerokość + margin-inline: auto),
+ *   nie paddingiem treści. Padding daje ramkę pełnej szerokości z wewnętrznym
+ *   marginesem: wygląda tak samo, ale getBoundingClientRect().x zwraca 0,
+ *   więc pomiar geometrii wobec makiety (gdzie ramka stoi na x = gutter)
+ *   się nie zgadza.
+ * - Nie zagnieżdżaj .fwp-container w .fwp-wrapper — gutter odjąłby się
+ *   dwa razy. Jedna warstwa na element.
+ * - Tło na pełną szerokość kładź na rodzicu, nie na wrapperze.
+ */
+
+:root {
+	/*
+	 * Gutter płynny: makiety istnieją zwykle tylko dla skrajnych szerokości
+	 * (np. 393 i 1920), więc między nimi interpolujemy, zamiast przeskakiwać
+	 * na sztywnym breakpoincie. Minimum to gutter z makiety mobilnej,
+	 * nachylenie dobierz tak, by przy szerokości ramki desktop osiągnąć
+	 * dokładnie --fwp-gutter (np. 50 / 1920 ≈ 2.6vw).
+	 */
+	--fwp-gutter-fluid: clamp(1rem, 2.6vw, var(--fwp-gutter, 1rem));
+
+	/*
+	 * Lewa krawędź warstwy wrappera względem viewportu — ta sama liczba, którą
+	 * .fwp-wrapper osiąga przez margin-inline: auto, ale dostępna też dla
+	 * elementów pełnoekranowych, które wrappera w sobie nie mają.
+	 */
+	--fwp-wrapper-start: max(var(--fwp-gutter-fluid), calc(50% - (var(--fwp-wrapper, 100%) / 2)));
+
+	/* Lewa krawędź kontenera treści względem viewportu. */
+	--fwp-container-start: max(var(--fwp-gutter-fluid), calc(50% - (var(--fwp-container, 100%) / 2)));
+}
+
+/*
+ * width: min(...) daje dokładnie szerokość z makiety na dużym ekranie, bo
+ * wtedy gutter-fluid dochodzi do --fwp-gutter i wygrywa drugi argument min().
+ */
+.fwp-wrapper {
+	width: min(calc(100% - (var(--fwp-gutter-fluid) * 2)), var(--fwp-wrapper, 100%));
+	margin-inline: auto;
+}
+
+.fwp-container {
+	width: min(calc(100% - (var(--fwp-gutter-fluid) * 2)), var(--fwp-container, 100%));
+	margin-inline: auto;
+}
+
+/*
+ * Wyprowadza element na pełną szerokość viewportu, choć leży w kontenerze.
+ * 100vw/50vw to standardowy idiom „break-out”: wartość zależy z definicji od
+ * viewportu, nie od makiety, więc nie ma dla niej tokenu. 100vw obejmuje
+ * pasek przewijania — bez overflow-x: clip na html (niżej) na Windowsie
+ * pojawiłby się poziomy scroll.
+ */
+.fwp-full-bleed {
+	width: 100vw;
+	max-width: 100vw;
+	margin-inline: calc(50% - 50vw);
+}
+
+/*
+ * clip, nie hidden: overflow-x: hidden na html tworzy kontener przewijania
+ * i łamie position: sticky u potomków (np. przyklejony nagłówek), clip nie.
+ *
+ * Uwaga: przez clip brak paska przewijania NIE dowodzi, że nic nie wystaje —
+ * ucięta treść po prostu znika. Sprawdzaj szerokości elementów, nie pasek.
+ *
+ * Jeśli dodasz przyklejony nagłówek, który zmienia wysokość podczas
+ * przewijania (np. chowa pasek kategorii), dopisz tu overflow-anchor: none.
+ * Bez tego scroll anchoring przeglądarki kompensuje zmianę wysokości
+ * dodatkowymi zdarzeniami scroll, window.scrollY dryfuje, a logika
+ * pokaż/ukryj oparta na delcie scrollY zaczyna migać. Samo overflow-anchor
+ * na nagłówku nie wystarcza — działa dopiero na html.
+ */
+html {
+	overflow-x: clip;
+}
+
+/* Minimalny nagłówek i stopka zastępcze, dopóki nie ma właściwych partiali. */
+.fwp-site-fallback {
+	padding-block: var(--fwp-space-24, 1.5rem);
+}
