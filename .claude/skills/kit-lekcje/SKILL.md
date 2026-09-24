@@ -28,6 +28,12 @@ uniwersalna. „Przycisk w sekcji O nas ma padding 32” nie jest.
 
 ## 3. Zapisz
 
+**Repozytorium frameworka jest publiczne.** W `LEKCJE.md` zestawu i w
+zmianach w nim nie ma nazwy klienta, jego domen, kluczy plików Figmy, adresów
+serwerów, danych z makiety (teksty, nazwy produktów) ani niczego z `.env`.
+Klienta oznaczasz kolejną literą: „Projekt B”, „Projekt C”. Przed commitem
+w zestawie zrób `git diff` i przeczytaj go pod tym kątem.
+
 - W projekcie: `LEKCJE.md`. Dopisz blok z datą, klientem i lekcjami
   w formacie istniejących wpisów: co się stało, ile kosztowało, co zmienić
   w frameworku.
