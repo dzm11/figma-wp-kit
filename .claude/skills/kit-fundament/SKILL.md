@@ -17,6 +17,16 @@ Tokeny layoutu są w `tokens.css`. `layout.css` ma `.{prefiks}-wrapper`,
 1. Sprawdź, czy warstwy z rekonesansu mają odpowiedniki. Warstwa pośrednia
    (np. nagłówek 1600) to trzecia klasa w `layout.css`, a nie wartość
    wpisana w sekcji.
+   - `overflow-x: clip` jest na `html` **i na `body`**. Sam `html` przenosi
+     `clip` na okno jako `hidden`: kółkiem nie przewiniesz, ale `scrollTo`,
+     kotwica i fokus przesuwają stronę o szerokość wystających dekoracji.
+   - Ramka strony w Figmie ma `itemReverseZIndex` (z rekonesansu)? Sekcje
+     w kontenerze treści dostają `isolation: isolate` i malejący `z-index`
+     w dół strony, w `layout.css`, raz dla wszystkich.
+   - Nagłówek sticky: `--{prefiks}-sticky-offset` dla `scroll-padding-top`
+     i `scroll-margin-top`. Skrypt w `<head>` dodaje klasę `{prefiks}-js` na
+     `<html>`. Bez niej (brak JS) nagłówek się nie zwija, więc offset to
+     pełna wysokość belki, a nie wysokość po zwinięciu.
 2. Zmierz w przeglądarce (Playwright, `boundingBox`) szerokość i `x` obu
    warstw na czterech szerokościach z `projekt.json`.
 3. Porównaj z makietą. Rozjazd > 4 px trzeba naprawić tu, nie w sekcjach.
@@ -45,6 +55,13 @@ Figma ma ten sam komponent z różnymi wartościami w różnych instancjach
 (padding 24 tu, 32 tam)? Wybierz wartość zgodną z większością instancji,
 zapisz ustalenie w rejestrze i dopisz pytanie dla projektanta. **Nie zmieniaj
 komponentu globalnie pod jedną instancję**, bo zepsujesz pozostałe.
+
+**Komponent nagłówka sekcji** (eyebrow, tytuł, lead, przycisk) powtarza się
+prawie w każdej sekcji, więc powstaje tu, z układami z makiety (np. obok siebie,
+do lewej, wyśrodkowany) i różnicami sekcji przez zmienne CSS, nie przez
+kopie. Tytuł z `clamp()` ma ułamkową interlinię: `line-height:
+round(…, 1px)`, inaczej sekcja ma ułamkową wysokość i przesuwa wszystkie
+niższe o pół piksela.
 
 Efekty (poświata, cień, nakładka, `z-index: -1`) sprawdzasz **zrzutem**,
 nie odczytem `getComputedStyle`. Deklaracja `opacity: .55` nic nie mówi

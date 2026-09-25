@@ -8,6 +8,9 @@ Budujesz jedną sekcję strony `{widok}` motywu WordPress `{slug}` (prefiks
 `{prefiks}`). Katalog projektu: `{sciezka}`. Pracujesz po polsku: komentarze
 w kodzie i raport.
 
+Jeśli twoje pliki już istnieją, poprzednie podejście przerwał limit sesji.
+Przeczytaj je, zmierz i dokończ. Nie zaczynaj od nowa.
+
 ## Twoje pliki, i tylko te
 
     theme/template-parts/sections/home-{slug}.php
@@ -18,9 +21,13 @@ Nic poza nimi. Nagłówek, stopka, `inc/`, `functions.php`, `tools/` i inne
 sekcje są w rękach innych. Brakuje ci czegoś we wspólnym pliku (token,
 helper, ikona w sprite)? Napisz to w raporcie, nie dopisuj sam.
 
-Partial jest już wołany przez `{prefiks}_render_home_sections()`. Styl ładujesz
+Partial jest już wołany przez `{prefiks}_render_home_sections()` (podstrona:
+przez listę `theme/inc/views/{widok}.php`, której nie edytujesz). Styl ładujesz
 pierwszą linią partiala po `defined( 'ABSPATH' ) || exit;`:
 `{prefiks}_enqueue_section_style( 'home-{slug}' );`
+
+Skrypty pomocnicze i zrzuty trzymasz w `{scratchpad}/{slug}/`, nie w repo
+i nie we wspólnym katalogu innych agentów.
 
 Wzorzec do naśladowania: `theme/template-parts/sections/home-{wzorcowa}.php`.
 
@@ -43,6 +50,8 @@ Wzorzec do naśladowania: `theme/template-parts/sections/home-{wzorcowa}.php`.
    z tabeli wymiarów. Rozjazd > 4 px poprawiasz albo wyjaśniasz.
 6. `npm run parity -- home-{slug}`, a przy makiecie mobilnej także `--mobile`.
 7. Sprawdź brak poziomego scrolla na 393, 1024, 1440 i 1920.
+8. Składnia PHP: `npx wp-env run cli php -l wp-content/themes/{slug}/<plik>`,
+   a `npm run lint:php` bez nowych błędów w twoich plikach.
 
 ## Czego nie robisz
 
@@ -51,6 +60,12 @@ Wzorzec do naśladowania: `theme/template-parts/sections/home-{wzorcowa}.php`.
 - Nie uruchamiasz poleceń git zmieniających stan (`add`, `commit`, `checkout`,
   `stash`, `reset`, `clean`). `status`, `diff` i `log` wolno.
 - Nie dispatchujesz podagentów.
+- Nie uruchamiasz `wp-env start`, `stop`, `status` ani `destroy`. WordPress
+  działa. WP-CLI tylko przez `npm run wp -- …` albo `npx wp-env run cli …`.
+  Pisze „Environment not initialized”? Użyj `docker exec <kontener-cli> wp …`
+  (nazwa z `docker ps`) i zgłoś to w raporcie.
+- Playwright uruchamiasz z `--workers=1` (najwyżej `2`). Obok pracują inni
+  agenci na tej samej bazie.
 - Nie odtwarzasz sztywnych szerokości z Figmy, które nie mieszczą się
   w breakpoincie (np. blok 728 px w ramce 393). Pozwól treści płynąć
   i napisz o tym.
@@ -81,6 +96,23 @@ Wzorzec do naśladowania: `theme/template-parts/sections/home-{wzorcowa}.php`.
   `pointer-events: none`.
 - `overflow-x: clip` na `html` **ukrywa** poziomy scroll zamiast go usuwać.
   Ucięty przycisk nie da o sobie znać. Mierz `scrollWidth` elementów, nie strony.
+- Obrys „inside” z Figmy nie zajmuje miejsca, a `border` przesuwa treść.
+  Odtwarzaj go nakładką `::before` (karty), `box-shadow: inset` albo paddingiem
+  pomniejszonym o grubość obrysu (przyciski).
+- Wysokości trzymaj w całych pikselach. Ułamek (np. z interlinii w `clamp()`)
+  przesuwa każdą niższą sekcję o pół piksela. Przy płynnej interlinii użyj
+  `line-height: round(…, 1px)`.
+- Formularz wysyłany do `admin-post.php` ma `<input name="action">`, więc
+  w JS `form.action` zwraca **ten input**, nie adres. Adres czytaj przez
+  `form.getAttribute( 'action' )`. Bez tego wysyłka z JS nie działa nigdy.
+- `// phpcs:ignore` obejmuje jedną linię. Przy wieloliniowym `echo` nie
+  zadziała: najpierw złóż wynik w zmiennej, potem `echo $html; // phpcs:ignore …`.
+- Przesunięcie kotwic (`scroll-margin-top`, `scroll-padding-top`) liczone
+  z belki po zwinięciu nagłówka zawodzi bez JS: nagłówek się nie zwija
+  i chowa górę sekcji. Stan z JS rozpoznajesz po klasie `{prefiks}-js` na
+  `<html>`, a bez niej `--{prefiks}-sticky-offset` ma pełną wysokość belki.
+- Treść z JS (animacja wejścia, kaskada) bez JS i przy
+  `prefers-reduced-motion` jest widoczna w stanie końcowym.
 
 ## Raport (zwięźle)
 

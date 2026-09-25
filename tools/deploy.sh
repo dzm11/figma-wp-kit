@@ -7,11 +7,12 @@
 #
 # Użycie:
 #   npm run deploy -- bootstrap   jednorazowo: instaluje WP-CLI na serwerze
-#   npm run deploy -- theme       wysyła motyw
+#   npm run deploy -- theme       wysyła motyw (z HEAD, nie z drzewa roboczego)
 #   npm run deploy -- mu          wysyła pluginy mu (blokada indeksowania itp.)
 #   npm run deploy -- media       wysyła bibliotekę mediów
 #   npm run deploy -- content     wysyła bazę danych (NADPISUJE zdalną)
 #   npm run deploy -- all         motyw + mu + media + baza
+#   npm run deploy -- agentation  wysyła sam bundle paska uwag (podgląd staging)
 #
 # Konfiguracja: .env.deploy (wzór w .env.deploy.example).
 # Katalog motywu na serwerze to slug z projekt.json.
@@ -32,6 +33,7 @@ fi
 blad() { printf '\033[31m%s\033[0m\n' "$*" >&2; exit 1; }
 info() { printf '\033[36m%s\033[0m\n' "$*"; }
 ok()   { printf '\033[32m%s\033[0m\n' "$*"; }
+uwaga() { printf '\033[33m%s\033[0m\n' "$*"; }
 
 [ -f projekt.json ] || blad "Brak projekt.json w katalogu projektu."
 SLUG="$(node -p "require('./projekt.json').slug" 2>/dev/null || true)"
@@ -78,9 +80,28 @@ zadanie_bootstrap() {
 
 # ── motyw ────────────────────────────────────────────────────────────────────
 zadanie_motyw() {
-	info "Wysyłam motyw do ${KATALOG_MOTYWU}…"
+	git rev-parse --verify -q HEAD >/dev/null || blad "Motyw wysyłam z HEAD, a repozytorium nie ma jeszcze commita."
+
+	# Motyw idzie z ostatniego commita, nie z drzewa roboczego: równolegli
+	# agenci mogą mieć w theme/ niedokończone pliki, a na podglądzie ma być
+	# tylko to, co koordynator sprawdził i zatwierdził.
+	if [ -n "$(git status --porcelain -- theme)" ]; then
+		uwaga "UWAGA: theme/ ma niezatwierdzone zmiany. Wysyłam motyw z HEAD ($(git rev-parse --short HEAD)), bez nich."
+	fi
+
+	local tymczasowy
+	tymczasowy="$(mktemp -d)"
+	# trap - RETURN: pułapka ustawiona w funkcji zostaje w powłoce i przy
+	# `all` odpaliłaby się po kolejnych zadaniach, już bez zmiennej lokalnej.
+	trap 'rm -rf "${tymczasowy:-}"; trap - RETURN' RETURN
+	git archive HEAD theme | tar -x -C "$tymczasowy"
+	[ -d "$tymczasowy/theme" ] || blad "HEAD nie zawiera katalogu theme/."
+
+	info "Wysyłam motyw z HEAD do ${KATALOG_MOTYWU}…"
 	# Wysyłamy wyłącznie to, co motyw wykonuje. Testy, zależności deweloperskie
-	# i bundle paska uwag nie mają czego szukać na serwerze.
+	# i bundle paska uwag nie mają czego szukać na serwerze. Wykluczony plik
+	# nie jest też kasowany przez --delete, więc bundle wysłany osobno
+	# (zadanie agentation) przeżywa kolejne wdrożenia motywu.
 	rsync -az --delete \
 		-e "ssh -p $PORT" \
 		--exclude='tests/' \
@@ -92,9 +113,25 @@ zadanie_motyw() {
 		--exclude='.gitkeep' \
 		--exclude='.DS_Store' \
 		--exclude='assets/js/agentation.bundle.js' \
-		theme/ "${CEL}:${KATALOG_MOTYWU}/"
+		"$tymczasowy/theme/" "${CEL}:${KATALOG_MOTYWU}/"
 	prostuj_uprawnienia "${KATALOG_MOTYWU}"
 	ok "Motyw wysłany."
+}
+
+# ── pasek uwag (opcjonalnie) ─────────────────────────────────────────────────
+zadanie_agentation() {
+	local bundle="theme/assets/js/agentation.bundle.js"
+	[ -f "$bundle" ] || blad "Brak $bundle — zbuduj go przez npm run agentation."
+
+	# Tylko na podgląd: klient zgłasza uwagi paskiem wprost na stronie.
+	# Motyw ładuje bundle wyłącznie w środowisku, na które pozwala
+	# theme/inc/agentation.php (np. staging) — na produkcję go nie wysyłaj.
+	info "Wysyłam pasek uwag (${bundle}) na podgląd…"
+	"${ZDALNIE[@]}" "mkdir -p '${KATALOG_MOTYWU}/assets/js'"
+	rsync -az -e "ssh -p $PORT" \
+		"$bundle" "${CEL}:${KATALOG_MOTYWU}/assets/js/agentation.bundle.js"
+	"${ZDALNIE[@]}" "chmod 644 '${KATALOG_MOTYWU}/assets/js/agentation.bundle.js'"
+	ok "Pasek uwag wysłany."
 }
 
 # ── pluginy mu ──────────────────────────────────────────────────────────────
@@ -159,13 +196,35 @@ zadanie_tresc() {
 	info "Wysyłam zrzut…"
 	scp -q -P "$PORT" "$zrzut" "${CEL}:${zdalny_zrzut}"
 
+	# Kroki po imporcie zależne od .env.deploy. Wartości cytuje printf %q,
+	# bo hasło może zawierać znaki specjalne powłoki (zdalnie działa bash).
+	local po_imporcie=""
+	if [ -n "${DEPLOY_ADMIN_USER:-}" ] && [ -n "${DEPLOY_ADMIN_PASS:-}" ]; then
+		# Baza lokalna ma konto admin / password — na podglądzie w sieci to
+		# zaproszenie. Hasło zmieniamy przy każdym imporcie, bez maila.
+		po_imporcie+="${WP_ZDALNY} user update $(printf '%q' "$DEPLOY_ADMIN_USER") --user_pass=$(printf '%q' "$DEPLOY_ADMIN_PASS") --skip-email"$'\n'
+	elif [ -n "${DEPLOY_ADMIN_USER:-}${DEPLOY_ADMIN_PASS:-}" ]; then
+		uwaga "UWAGA: ustaw w .env.deploy oba pola DEPLOY_ADMIN_USER i DEPLOY_ADMIN_PASS — hasło zostaje lokalne."
+	fi
+	if [ -n "${DEPLOY_LOCALE:-}" ]; then
+		# Pliki tłumaczeń nie są w bazie — bez instalacji język by nie zadziałał.
+		local jezyk
+		jezyk="$(printf '%q' "$DEPLOY_LOCALE")"
+		po_imporcie+="${WP_ZDALNY} language core install ${jezyk} || true"$'\n'
+		po_imporcie+="${WP_ZDALNY} site switch-language ${jezyk}"$'\n'
+	fi
+
 	info "Importuję i podmieniam adresy…"
 	# search-replace z WP-CLI, nie zwykły sed po SQL: WordPress trzyma część
 	# danych zserializowanych, a podmiana tekstem psuje w nich długości ciągów.
+	# blog_public 0: podgląd nie może trafić do wyszukiwarek, nawet jeśli
+	# lokalna baza miała indeksowanie włączone (druga warstwa obok pluginu mu).
 	"${ZDALNIE[@]}" bash -s <<-SKRYPT
 		set -e
 		${WP_ZDALNY} db import ${zdalny_zrzut}
 		${WP_ZDALNY} search-replace '${DEPLOY_LOCAL_URL}' '${DEPLOY_REMOTE_URL}' --all-tables --report-changed-only
+		${WP_ZDALNY} option update blog_public 0
+		${po_imporcie}
 		${WP_ZDALNY} cache flush || true
 		${WP_ZDALNY} rewrite flush || true
 		rm -f ${zdalny_zrzut}
@@ -182,7 +241,8 @@ case "${1:-}" in
 	media)     zadanie_media ;;
 	content)   zadanie_tresc ;;
 	all)       zadanie_motyw; zadanie_mu; zadanie_media; zadanie_tresc ;;
+	agentation) zadanie_agentation ;;
 	*)
-		blad "Użycie: npm run deploy -- {bootstrap|theme|mu|media|content|all}"
+		blad "Użycie: npm run deploy -- {bootstrap|theme|mu|media|content|all|agentation}"
 		;;
 esac

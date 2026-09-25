@@ -20,6 +20,7 @@ $fwp_modules = array(
 	'helpers',
 	'sections',
 	'options',
+	'cms',
 	'agentation',
 );
 

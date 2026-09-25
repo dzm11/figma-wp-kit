@@ -59,6 +59,14 @@ Sprawdź, czy `.env` zawiera `FIGMA_TOKEN`. Jeśli nie, poproś właściciela:
 
 ## 4. WordPress
 
+**Zasoby maszyny Dockera.** Fazy 4–7 idą równolegle: kilka agentów, każdy
+z Playwrightem i WP-CLI na jednej bazie. Maszyna Dockera (Docker Desktop albo
+Colima) potrzebuje wtedy **co najmniej 6 GB RAM i 4 CPU**. Przy 2 GB baza
+pada z braku pamięci (OOM) i ciągnie za sobą kontenery innych projektów.
+Sprawdź: `docker info --format '{{.MemTotal}} {{.NCPU}}'`. Za mało? Poproś
+właściciela o zmianę (Colima: `colima stop && colima start --memory 6 --cpu 4`).
+Maszyna jest wspólna z innymi projektami, więc restart robisz **za jego zgodą**.
+
 **Najpierw sprawdź, czy port 8888 jest wolny.** Odpowiada tam WordPress
 innego projektu? Preflight uznałby go za ten projekt. Ustaw wtedy osobny port:
 `.wp-env.override.json` z `{"port": 8890, "testsPort": 8891}` (plik jest
@@ -85,8 +93,14 @@ Ostatnia komenda buduje pasek uwag, który widać tylko lokalnie.
 
 PHPCS do `npm run lint:php` instalujesz przez `npm run php:install`
 (composer w kontenerze). Pada na DNS (kontener nie widzi packagist, zdarza się
-na Colimie)? Zrestartuj Colimę (`colima restart`) i spróbuj ponownie.
-Lint to nie blocker startu: zapisz problem w `docs/stan.md` i idź dalej.
+na Colimie)? Rozwiązaniem jest restart maszyny Dockera (`colima restart` albo
+restart Docker Desktop), za zgodą właściciela, jeśli dzieli ją z innymi
+projektami. Potem `npm run env:start` i ponownie `php:install`.
+
+**PHPCS musi działać przed fazą 3.** Faza 0 może się bez niego zamknąć, ale
+fundament i sekcje już nie: lint wyłączony do fazy testów oznacza dziesiątki
+błędów narosłych u agentów i sprzątanie na końcu. Nie działa? Zapisz to
+w `docs/stan.md` jako blocker fazy 3.
 
 ## 5. Preflight
 

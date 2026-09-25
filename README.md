@@ -60,7 +60,15 @@ Zawsze zaczynamy od strony głównej.
 | 9 | Lekcje do frameworka | zatwierdzasz poprawki frameworka |
 
 Kolejny widok: `/kit` z nazwą widoku, np. „przenieś widok Kontakt”.
-Fundament jest już gotowy, więc idzie szybciej.
+Fundament jest już gotowy, więc idzie szybciej. Kilka widoków naraz Claude
+prowadzi workflowem (rekonesans i budowa potokiem per widok).
+
+Chcesz, żeby pracował bez zatrzymywania się (np. przez noc)? Napisz „nie
+zatrzymuj się, wybieraj rekomendowane”. Decyzje z bramek trafią do rejestru,
+a na końcu dostaniesz jedno podsumowanie.
+
+**Docker:** przy pracy równoległej maszyna Dockera potrzebuje co najmniej
+6 GB RAM i 4 CPU.
 
 **Brak makiety mobilnej nie blokuje pracy.** Claude projektuje mobile według
 reguł w `.claude/skills/kit-sekcje/mobile.md` i oznacza to w rejestrze jako
@@ -69,7 +77,7 @@ reguł w `.claude/skills/kit-sekcje/mobile.md` i oznacza to w rejestrze jako
 ## Jak zgłaszać uwagi
 
 Na `http://localhost:8888`, w prawym dolnym rogu, jest pasek **Agentation**
-(tylko lokalnie):
+(lokalnie i na podglądzie w środowisku `staging`, nigdy na produkcji):
 
 1. Kliknij ikonę, potem element na stronie.
 2. Wpisz uwagę: „za duży odstęp”, „jak w Figmie”, „ten przycisk kwadratowy”.

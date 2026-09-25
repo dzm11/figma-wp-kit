@@ -18,6 +18,25 @@ Pierwszy raz na serwerze: `npm run deploy -- bootstrap` instaluje WP-CLI
 w katalogu domowym. WordPress na serwerze musi już istnieć, bo instaluje
 go panel hostingu.
 
+W `.env.deploy` ustaw też `DEPLOY_ADMIN_USER` i `DEPLOY_ADMIN_PASS` (hasło
+admina na podglądzie, baza lokalna ma `admin / password`) oraz `DEPLOY_LOCALE`
+(język panelu i strony). Skrypt stosuje je po każdym imporcie treści.
+
+**Subdomeny podglądu.** Podglądy kolejnych klientów na własnej domenie
+agencji? Dodaj raz rekord DNS `*` (wildcard) wskazujący na serwer. Potem nowy
+podgląd to tylko subdomena w panelu hostingu i certyfikat, bez czekania na
+propagację DNS.
+
+**Cudzy hosting** (konto klienta, na którym stoją inne strony): nie dostajesz
+pełnego SSH do całego konta. Wybierz jedno:
+- osobne konto (albo podkonto) hostingu tylko na podgląd,
+- klucz SSH ograniczony w `authorized_keys` do rsync w jednym katalogu:
+  `command="rrsync /ścieżka/do/podglądu",restrict ssh-ed25519 …`. Wtedy
+  WP-CLI zdalnie nie działa i kroki bazy robi właściciel albo panel,
+- osobny użytkownik bazy z uprawnieniami tylko do bazy podglądu.
+
+Zapisz wybór w `docs/wdrozenie.md`.
+
 ## 2. Blokada robotów, przed pierwszym wysłaniem treści
 
 1. Dopisz host podglądu (i techniczną domenę hostingu, jeśli przekierowuje)
@@ -46,7 +65,24 @@ strony.
 npm run deploy -- theme
 npm run deploy -- media
 npm run deploy -- content   # NADPISUJE bazę na serwerze
+npm run deploy -- agentation  # pasek uwag na podglądzie
 ```
+
+- **Motyw idzie z `git archive HEAD`**, nie z drzewa roboczego. Wdrażasz to,
+  co zacommitowane, więc niedokończone pliki równolegle pracujących agentów
+  nie trafią na serwer. Zmiana ma być na podglądzie? Najpierw commit.
+- **Po imporcie treści** skrypt ustawia `blog_public 0`, hasło admina
+  z `.env.deploy` i język (`DEPLOY_LOCALE`). Import bazy nadpisuje wszystkie
+  trzy wartościami lokalnymi, więc to nie jest krok jednorazowy.
+- **Rozgrzej strony** po imporcie: odwiedź raz każdy adres (strona główna
+  i `path` z `nodes.json`, `curl -s -o /dev/null`). Pierwsze wyświetlenie
+  wczytuje listy z makiety do pustych repeaterów w panelu (zob. `kit-cms`).
+  Bez tego redaktor zobaczy w panelu puste listy.
+- **Pasek uwag na podglądzie.** Działa lokalnie i w środowisku `staging`,
+  nigdy na produkcji. Na serwerze podglądu ustaw w `wp-config.php`
+  `define( 'WP_ENVIRONMENT_TYPE', 'staging' );` i wyślij bundle przez
+  `npm run deploy -- agentation` (zbudowany wcześniej `npm run agentation`).
+  Wdrożenie motywu go nie kasuje. Na domenę produkcyjną bundla nie wysyłasz.
 
 **Bramka przed `content`:** zapytaj właściciela wprost, czy nadpisać bazę
 na serwerze. Skrypt i tak pyta o „tak”, ale ty też nie zakładasz zgody.

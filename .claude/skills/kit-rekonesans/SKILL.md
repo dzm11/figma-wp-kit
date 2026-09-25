@@ -31,7 +31,12 @@ Schemat `docs/figma/tokens.json` jest opisany w `docs/figma/README.md`.
   osobno. **Alias zostaje aliasem.**
 - Typografia: style tekstu (`figma_get_text_styles`). Rodzinę i wagę czytaj
   z węzła tekstowego, który używa stylu, gdy styl zwraca `fontName: undefined`.
-  Interlinię zapisuj z sześcioma miejscami po przecinku.
+  Interlinię zapisuj z **pełną precyzją** odczytu (bez zaokrąglania do trzech
+  czy sześciu miejsc). `npm run tokens` sam dobiera precyzję: wartość bliską
+  całemu pikselowi zaokrągla w górę, bo ułamkowa interlinia (28,984 zamiast
+  29 px) przesuwa każdą niższą sekcję o pół piksela.
+- Promienie i cienie też są tokenami (`radius`, `shadow` w `tokens.json`),
+  nie liczbami w sekcjach.
 - Layout: szerokość wrappera, kontenera, gutter i ewentualne warstwy pośrednie
   **zmierzone na ramkach**, nie wzięte z nazw. Skala odstępów to **zbiór
   wartości faktycznie użytych** w auto-layoutach (gap i padding) widoku, a nie
@@ -45,6 +50,15 @@ Przy kolejnych widokach dopisujesz tylko brakujące tokeny.
 Rodziny z typografii: Google Fonts pobierasz przez `npm run fonts` do
 `theme/assets/fonts/`. Fonty komercyjne: poproś właściciela o pliki i nie
 zastępuj ich po cichu innymi.
+
+**Zaraz po `npm run fonts` sprawdź wersję fontu.** Google Fonts serwuje
+bieżące wydanie, a Figma bywa na starszym. Różnica 1–3 % szerokości daje
+rozjazdy 4–14 px w rzędach tekstu i wygląda jak błąd CSS. Test: wyrenderuj
+w przeglądarce 3–4 teksty z makiety (nagłówek, akapit, przycisk) tym samym
+stylem i porównaj szerokość z ramką węzła tekstowego (auto-width) w Figmie.
+Różnica > 1 %? Przypnij wersję zgodną z Figmą (np. z pakietu npm albo
+repozytorium fontu z tagiem wersji), zapisz ustalenie w rejestrze i powtórz
+test.
 
 ## 4. Mapa węzłów
 
@@ -64,6 +78,13 @@ zawsze pokaże rozjazd.
 Następnie `npm run figma:ref -- <slug>` i `--mobile` dla każdej sekcji
 z makietą mobilną.
 
+**Kolejność warstw.** Sprawdź `itemReverseZIndex` na ramce strony
+(i na ramkach grupujących sekcje). Przy `true` wcześniejsza sekcja leży **nad**
+późniejszą, więc dekoracje wystające w dół (bloby, fale) przykrywają następną
+sekcję. W HTML jest odwrotnie. Zapisz to w kontraktach i jako ustalenie
+w rejestrze. Fundament da sekcjom `isolation: isolate` i malejący `z-index`
+w dół strony.
+
 ## 5. Kontrakty sekcji
 
 Dla każdej sekcji `docs/figma/sections/home-{slug}.md` według
@@ -81,6 +102,13 @@ Wypisz **tylko to, czego subagent potrzebuje do zbudowania sekcji**:
 - listę grafik z nodeId,
 - zachowania z adnotacji, łącznie z adnotacjami komponentów.
 
+Zachowania nie zawsze są w adnotacjach. Poszukaj w pliku **ramek
+dokumentacji** (nazwy typu „Interakcje”, „Animacje”, „Stany”, „Specyfikacja”,
+tekst obok ramek widoku) i stron z opisem stanów hover/focus. Opis tekstowy
+jest tak samo wiążący jak adnotacja. Wpisz go do kontraktu ze źródłem
+(nodeId ramki). Dokumentacja sprzeczna z ramką widoku? Obowiązuje ramka,
+bo zwykle jest nowsza, a sprzeczność trafia do pytań.
+
 Sekcje niezależne od siebie mierz **równolegle subagentami**
 (superpowers:dispatching-parallel-agents), po 3–4 naraz. Każdy dostaje
 szablon kontraktu i zwraca gotowy plik.
@@ -92,19 +120,52 @@ w fazie 4 i ewentualnie podział. Nagłówek bywa pracą na trzy–cztery zadani
 ## 6. Grafiki przez REST API
 
 ```bash
-npm run figma:assets -- <nodeId...> --format svg --out theme/assets/img/icons
-npm run figma:assets -- <nodeId...> --format png --scale 2 --out theme/assets/img/raw
-npm run images
+npm run figma:assets -- <nodeId...> --format svg --out design-assets/raw/icons
+npm run icons
+npm run figma:fills -- <imageRef[=nazwa]…> --out design-assets/raw/photos
+npm run images -- --src design-assets/raw/photos --out theme/assets/img/photos
 ```
 
-- Ikony: SVG, jeden sprite.
-- Zdjęcia: PNG ×2, potem `npm run images` robi WebP.
+- **Ikony:** SVG do `design-assets/raw/icons/` (nazwa pliku w kebab-case
+  z nazwy komponentu), potem `npm run icons` składa sprite
+  `theme/assets/img/icons.svg` z kolorami na `currentColor`. W PHP ikona to
+  `{prefiks}_icon( 'nazwa' )`. Ikony liniowe sprawdź zrzutem: zalana kolorem
+  ikona znaczy, że zgubił się `fill="none"`.
+- **Zdjęcia:** oryginały wypełnień IMAGE przez `npm run figma:fills` po hashu
+  `imageRef` z kontraktu, nie eksport węzła. Eksport węzła wypala nakładki,
+  gradienty i zaokrąglenia karty w obraz, a te sekcja robi w CSS.
+  Eksport PNG ×2 (`figma:assets --format png --scale 2`) tylko wtedy, gdy obraz
+  naprawdę jest kompozycją (kolaż, zdjęcie z wektorową ramką).
+  Potem `npm run images` robi WebP.
 - Logotypy: SVG, jeśli są wektorowe.
 
 Szukaj ikon po **wszystkich** ramkach typu `Icon*` i wektorach `Glyph`, nie tylko
 po instancjach biblioteki ikon. Nie wymyślaj nazw ikon, bierz je z Figmy.
 
-## 7. Pytania
+## 7. Kolejny widok (podstrona)
+
+Przy widoku innym niż strona główna, dodatkowo:
+
+- **Plik widoku zakładasz tutaj:** `theme/inc/views/{widok}.php` zwraca listę
+  slugów sekcji w kolejności z makiety. Jeden plik na widok, więc widoki mogą
+  powstawać równolegle bez wspólnego pliku. Slug bez partiala jest pomijany,
+  więc lista może wyprzedzać kod. Widok = slug strony WordPressa (albo szablon
+  „Układ: …”, zob. `kit-cms`), strona błędu = `404`.
+- **Slugi sekcji** z prefiksem widoku (`{widok}-hero`, `{widok}-faq`), żeby
+  pliki różnych widoków się nie zderzały. Sekcja powtarzana w kilku widokach
+  z tym samym układem to `shared-{nazwa}`: jeden partial, treść per widok
+  (zob. `kit-sekcje`).
+- **`nodes.json`:** każdy wpis sekcji podstrony ma pole `path` (adres strony,
+  np. `/kontakt/`), z którego `parity` bierze URL. Sekcja wspólna występuje
+  w kilku widokach, więc jej klucze mają postać `slug@widok`
+  (`shared-cta@kontakt`), każdy z własnym nodeId i `path`.
+- Kontrakty: `docs/figma/sections/{slug}.md` z pełnym slugiem sekcji.
+- Tokeny, fonty i komponenty już są. Dopisujesz tylko brakujące.
+
+Wiele widoków naraz? Rekonesans i budowę prowadź potokiem per widok
+(rekonesans widoku A → budowa A, w tym czasie rekonesans B), zob. `kit`.
+
+## 8. Pytania
 
 `docs/figma/pytania.md` łączy niespójności z `porzadki.md`, adnotacje
 „[do potwierdzenia]” i wszystko, czego pomiar nie rozstrzyga. Każde pytanie ma

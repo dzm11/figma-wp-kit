@@ -70,6 +70,15 @@ const MASK_COVERAGE_WARNING_RATIO = 0.4;
 // się osiągnąć, to jest ustalenie do zgłoszenia, nie do obejścia.
 const GEOMETRY_TOLERANCE_PX = 4;
 
+// Skupiska różnic: kafelek HOTSPOT_TILE_PX × HOTSPOT_TILE_PX, w którym różni się
+// ponad HOTSPOT_MIN_RATIO pikseli, to błąd bez względu na średnią dla sekcji.
+// Kalibracja na sekcji wzorcowej: poprawny render ma najgorszy
+// kafelek poniżej progu, a 6 pigułek przesuniętych o 20 px (0,43% całości,
+// czyli „OK” wg progu 2%) daje kafelki powyżej. Tekst jest zamaskowany,
+// więc szum liter nie tworzy skupisk.
+const HOTSPOT_TILE_PX = 48;
+const HOTSPOT_MIN_RATIO = 0.2;
+
 /**
  * Przycina prostokąt do granic obrazu i zaokrągla współrzędne do pikseli.
  * Współdzielone przez applyMasks (malowanie) i maskCoverageRatio (liczenie
@@ -334,9 +343,32 @@ async function resolveBackgroundColor(elementHandle) {
   return [Math.round(parsed.r), Math.round(parsed.g), Math.round(parsed.b)];
 }
 
+/** Wycina lewy górny prostokąt width × height z odczytanego PNG. */
+function trimPng(png, width, height) {
+  if (png.width === width && png.height === height) {
+    return png;
+  }
+  const out = new PNG({ width, height });
+  PNG.bitblt(png, out, 0, 0, width, height, 0, 0);
+  return out;
+}
+
 export function comparePng(refBuffer, actualBuffer, opts = {}) {
-  const reference = PNG.sync.read(refBuffer);
-  const actual = PNG.sync.read(actualBuffer);
+  let reference = PNG.sync.read(refBuffer);
+  let actual = PNG.sync.read(actualBuffer);
+
+  // Różnica o 1 px w osi to zaokrąglenie zrzutu elementu leżącego na ułamkowej
+  // pozycji (sekcja nad nim ma np. ułamkową wysokość), nie rozjazd układu.
+  const dw = Math.abs(reference.width - actual.width);
+  const dh = Math.abs(reference.height - actual.height);
+  let subpixelTrim = false;
+  if ((dw || dh) && dw <= 1 && dh <= 1) {
+    const width = Math.min(reference.width, actual.width);
+    const height = Math.min(reference.height, actual.height);
+    reference = trimPng(reference, width, height);
+    actual = trimPng(actual, width, height);
+    subpixelTrim = true;
+  }
 
   if (reference.width !== actual.width || reference.height !== actual.height) {
     return {
@@ -365,12 +397,51 @@ export function comparePng(refBuffer, actualBuffer, opts = {}) {
 
   return {
     sizeMismatch: false,
+    subpixelTrim,
     diffPixels,
     diffRatio: diffPixels / total,
     total,
     diff: PNG.sync.write(diff),
     message: null,
   };
+}
+
+/**
+ * Kafelki obrazu różnic (wynik pixelmatch), w których różni się duża część
+ * pikseli. Średnia dla całej sekcji chowa błąd małego elementu — przesunięta
+ * pigułka zajmuje ułamek procenta sekcji, ale w swoim kafelku jest jaskrawa.
+ *
+ * pixelmatch maluje różnicę na czerwono (255, 0, 0); antyaliasing (includeAA:
+ * false) na żółto i nie jest liczony.
+ */
+export function findHotspots(diffBuffer, { tile = HOTSPOT_TILE_PX, minRatio = HOTSPOT_MIN_RATIO } = {}) {
+  if (!diffBuffer) {
+    return [];
+  }
+  const diff = PNG.sync.read(diffBuffer);
+  const hotspots = [];
+
+  for (let ty = 0; ty < diff.height; ty += tile) {
+    for (let tx = 0; tx < diff.width; tx += tile) {
+      const w = Math.min(tile, diff.width - tx);
+      const h = Math.min(tile, diff.height - ty);
+      let count = 0;
+      for (let y = ty; y < ty + h; y++) {
+        for (let x = tx; x < tx + w; x++) {
+          const i = (y * diff.width + x) * 4;
+          if (diff.data[i] === 255 && diff.data[i + 1] === 0 && diff.data[i + 2] === 0) {
+            count++;
+          }
+        }
+      }
+      const ratio = count / (w * h);
+      if (ratio > minRatio) {
+        hotspots.push({ x: tx, y: ty, width: w, height: h, ratio });
+      }
+    }
+  }
+
+  return hotspots.sort((a, b) => b.ratio - a.ratio);
 }
 
 export function assertGeometry(expected, actual, tolerance = GEOMETRY_TOLERANCE_PX) {
@@ -521,6 +592,18 @@ export function sectionSelector(slug, nodes) {
  *
  * Brak węzła desktopowego to błąd konfiguracji — rzuca wyjątkiem.
  */
+/**
+ * Adres strony, na której leży sekcja: baza (urlLokalny) + pole "path" wpisu
+ * w nodes.json. Brak pola = strona główna.
+ */
+export function pageUrl(base, entry) {
+  const path = entry?.path;
+  if (!path) {
+    return base;
+  }
+  return `${String(base).replace(/\/+$/, '')}/${String(path).replace(/^\/+/, '')}`;
+}
+
 export function planRun(slug, breakpoint, nodes) {
   const selector = sectionSelector(slug, nodes);
   const nodeId = nodes[slug]?.[breakpoint];
@@ -567,6 +650,21 @@ export function decideOutcome(compareResult, geometryProblems = []) {
   }
 
   const percent = (compareResult.diffRatio * 100).toFixed(2);
+  const hotspots = compareResult.hotspots ?? [];
+
+  if (hotspots.length > 0) {
+    const list = hotspots
+      .slice(0, 5)
+      .map((h) => `(${h.x}, ${h.y}) ${Math.round(h.ratio * 100)}%`)
+      .join('; ');
+    return {
+      exitCode: 1,
+      message:
+        `Różnica pikseli ${percent}%, ale ${hotspots.length} skupisk(a) różnic w kafelkach ` +
+        `${HOTSPOT_TILE_PX} px (lewy górny róg w px sekcji, udział różnych pikseli): ${list}. ` +
+        'Obejrzyj plik .diff.png w tych miejscach.',
+    };
+  }
 
   if (compareResult.diffRatio > DIFF_RATIO_THRESHOLD) {
     return {
@@ -654,7 +752,10 @@ async function collectTextClientRects(page, selector) {
 async function defaultOpenPage(viewport) {
   const { chromium } = await import('@playwright/test');
   const browser = await chromium.launch();
-  const page = await browser.newPage({ viewport, deviceScaleFactor: DEVICE_SCALE_FACTOR });
+  // reducedMotion: sekcje z animacją wejścia (kaskady, liczniki, zoom zdjęcia)
+  // pokazują wtedy stan końcowy — ten, który rysuje makieta. Bez tego zrzut
+  // łapie animację w połowie i porównanie mierzy moment, nie wygląd.
+  const page = await browser.newPage({ viewport, deviceScaleFactor: DEVICE_SCALE_FACTOR, reducedMotion: 'reduce' });
   return { page, close: () => browser.close() };
 }
 
@@ -704,7 +805,7 @@ export async function runParity(argv, deps = {}) {
   }
 
   const { selector } = plan;
-  const url = baseUrl(projekt);
+  const url = pageUrl(baseUrl(projekt), nodes[slug]);
 
   // Referencję pobieramy przed otwarciem przeglądarki — błąd tokenu albo API
   // ma się pojawić od razu, a nie po starcie Chromium.
@@ -726,6 +827,49 @@ export async function runParity(argv, deps = {}) {
       return 1;
     }
 
+    // Elementy przyklejone do ekranu (pasek uwag Agentation, FAB, sticky nagłówek)
+    // nakładają się na zrzut sekcji, której nie należą — bez tego każda sekcja
+    // pod FAB-em miałaby fałszywe skupisko różnic. Ukrywamy je przez visibility,
+    // żeby nie zmienić układu. Elementów wewnątrz badanej sekcji (i jej samej) nie ruszamy.
+    await page.evaluate((sel) => {
+      const target = document.querySelector(sel);
+      for (const el of document.body.querySelectorAll('*')) {
+        const { position } = getComputedStyle(el);
+        if ((position === 'fixed' || position === 'sticky') && !el.contains(target) && !target?.contains(el)) {
+          el.style.visibility = 'hidden';
+        }
+      }
+    }, selector);
+
+    // scroll-padding-top motywu (offset kotwic pod przyklejonym nagłówkiem) przesuwa
+    // przewinięcie przy zrzucie elementu i zrzut łapie pas następnej sekcji.
+    await page.evaluate(() => {
+      document.documentElement.style.scrollPaddingTop = '0px';
+    });
+
+    // Obrazy z loading="lazy" poniżej ekranu nie wczytują się przed zrzutem
+    // wysokiej sekcji — zrzut pokazałby puste ramki zamiast zdjęć.
+    // decode() na obrazie jeszcze niepobranym od razu odrzuca obietnicę, więc
+    // czekamy na zdarzenie load (z limitem, żeby zepsuty obraz nie wieszał porównania).
+    await page.evaluate(async () => {
+      const images = [...document.images];
+      for (const img of images) img.loading = 'eager';
+      // Po load czekamy jeszcze na decode(): obraz z decoding="async" bywa
+      // pobrany, ale niezamalowany w chwili zrzutu.
+      await Promise.all(
+        images.map((img) =>
+          (img.complete && img.naturalWidth
+            ? Promise.resolve()
+            : new Promise((resolve) => {
+                img.addEventListener('load', resolve, { once: true });
+                img.addEventListener('error', resolve, { once: true });
+                setTimeout(resolve, 10000);
+              })
+          ).then(() => (img.naturalWidth ? img.decode().catch(() => {}) : null))
+        )
+      );
+    });
+
     // Zrzut na stałym stanie scrolla, żeby prostokąty zmierzone zaraz potem
     // (boundingBox(), collectTextClientRects()) opisywały dokładnie to, co
     // zostało sfotografowane, a nie stan sprzed doscrollowania elementu.
@@ -740,7 +884,7 @@ export async function runParity(argv, deps = {}) {
       return 0;
     }
 
-    const actualBuffer = await element.first().screenshot();
+    const actualBuffer = await element.first().screenshot({ animations: 'disabled' });
     const sectionBox = await element.first().boundingBox();
     if (!sectionBox) {
       error(`Nie udało się zmierzyć ramki elementu "${selector}" — czy nie jest ukryty na tej szerokości?`);
@@ -829,6 +973,7 @@ export async function runParity(argv, deps = {}) {
     }
 
     const result = comparePng(maskedRefBuffer, maskedActualBuffer);
+    result.hotspots = result.sizeMismatch ? [] : findHotspots(result.diff);
 
     // Geometria sekcji jako całości, niezależna od maskowania: wymiary referencji
     // kontra realna ramka elementu zmierzona w DOM. To ścieżka, której zerowa

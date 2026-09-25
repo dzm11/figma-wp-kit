@@ -27,6 +27,48 @@ Gdy właściciel prosi o kolejny widok, a strona główna ma fazy 0–8 zrobione
    ponownie**. W kontrakcie nowej sekcji zaznacz, które z nich wykorzystuje.
    Porządki w Figmie (faza 1) powtórz tylko wtedy, gdy ramki nowego widoku
    mają generyczne nazwy warstw.
+4. Dalej fazy **2 → 4 → 5 → 6 → 7 → 8**, jak dla strony głównej, na gotowym
+   fundamencie. Rekonesans zakłada plik `theme/inc/views/{widok}.php`,
+   budowa sekcji idzie według sekcji „Podstrony” w `kit-sekcje`, a CMS według
+   reguły `{prefiks}_view` w `kit-cms`.
+
+## Wiele widoków naraz: workflow
+
+Kilka podstron do przeniesienia? Nie prowadź ich po kolei ręcznie. Zbuduj
+workflow (narzędzie Workflow, skill `workflow-authoring`), jeśli sesja je ma,
+a jeśli nie, partie agentów:
+
+- **Potok per widok:** rekonesans widoku A → budowa sekcji A, a w tym czasie
+  rekonesans B. Budowa widoku startuje, gdy jego kontrakty są gotowe, bez
+  czekania na rekonesans wszystkich.
+- Przegląd (bramka fazy 4) raz, na komplet widoków z rundy.
+- CMS także workflowem: najpierw kolekcje (typy treści, seedy), potem widoki
+  równolegle.
+- Testy: agent na plik testu, `--workers=1–2`. Pełny zestaw raz, u ciebie.
+- **Wznawianie:** limit sesji przerwał workflow? Uruchom go ponownie
+  z identyfikatorem przerwanego przebiegu (`resumeFromRunId`), jeśli narzędzie
+  to wspiera. Każdy agent budowy ma w briefie zdanie „jeśli twoje pliki już
+  istnieją, dokończ je”, więc powtórzony krok nie zaczyna od zera. Przed
+  wznowieniem zapisz w `docs/stan.md`, co zostało niezweryfikowane.
+- Commituje koordynator, po weryfikacji każdej partii albo widoku.
+
+## Tryb bez bramek
+
+Właściciel może zdjąć bramki na czas pracy ciągłej („nie zatrzymuj się,
+wybieraj rekomendowane”, np. na noc). Wtedy:
+
+- w bramce wybierasz domyślne rozstrzygnięcie (z `pytania.md` albo
+  rekomendowane) i idziesz dalej,
+- każde takie rozstrzygnięcie zapisujesz w `docs/decyzje/rejestr.md`
+  (ustalenia) z dopiskiem „bez bramki”,
+- decyzje nieodwracalne dalej wymagają zgody, chyba że właściciel wprost je
+  objął: nadpisanie bazy na serwerze, zmiany w pliku Figmy, restart
+  współdzielonej maszyny Dockera,
+- na końcu piszesz jedno podsumowanie: co zrobione, co rozstrzygnąłeś
+  sam (lista z rejestru), co czeka na ocenę, co zostało niezweryfikowane.
+
+Tryb obowiązuje tylko w sesji, w której go ogłoszono. Zapisz go w
+`docs/stan.md`, żeby przetrwał utratę kontekstu.
 
 ## Zasady, które obowiązują w każdej fazie
 

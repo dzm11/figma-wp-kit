@@ -36,6 +36,27 @@
 
 	/* Lewa krawędź kontenera treści względem viewportu. */
 	--fwp-container-start: max(var(--fwp-gutter-fluid), calc(50% - (var(--fwp-container, 100%) / 2)));
+
+	/*
+	 * Wysokość przyklejonej belki nagłówka + pasek admina WordPressa.
+	 * Kotwice, skip-link i scrollIntoView zatrzymują cel tuż pod belką
+	 * (scroll-padding-top na html niżej), a nie pod nią. Bez przyklejonego
+	 * nagłówka zostaje sam pasek admina.
+	 *
+	 * Szablon do uzupełnienia wg site-header.css, gdy nagłówek jest sticky:
+	 *
+	 *   :root { --fwp-sticky-offset: calc(<belka mobile> + var(--wp-admin--admin-bar--height, 0px)); }
+	 *   @media (min-width: <bp>) { :root { --fwp-sticky-offset: calc(<belka desktop po zwinięciu> + …); } }
+	 *
+	 * Jeśli belka zwija się skryptem przy przewijaniu, wartości wyżej to stan
+	 * PO zwinięciu, a stan bez JS (belka się nie zwija) dopisz osobno:
+	 *
+	 *   @media (min-width: <bp>) { :root:not(.fwp-js) { --fwp-sticky-offset: calc(<pełna belka> + …); } }
+	 *
+	 * Klasę fwp-js ustawia skrypt w <head> (header.php). Liczby ustala projekt
+	 * z wysokości belki w makiecie — w tokenach, nie na sztywno.
+	 */
+	--fwp-sticky-offset: var(--wp-admin--admin-bar--height, 0px);
 }
 
 /*
@@ -80,6 +101,18 @@
  * na nagłówku nie wystarcza — działa dopiero na html.
  */
 html {
+	overflow-x: clip;
+	scroll-padding-top: var(--fwp-sticky-offset);
+}
+
+/*
+ * overflow-x na html przechodzi na okno (viewport) jako „hidden”: kółkiem
+ * w bok przewinąć się nie da, ale scrollTo, skok do kotwicy albo fokus
+ * elementu przesuwały stronę w bok o szerokość wystających dekoracji (bloby,
+ * zdjęcia wychodzące poza ramkę). clip na body przycina je w samym
+ * dokumencie i nie tworzy kontenera przewijania, więc sticky nadal działa.
+ */
+body {
 	overflow-x: clip;
 }
 

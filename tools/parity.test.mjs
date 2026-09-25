@@ -23,6 +23,8 @@ import {
   planRun,
   parseArgs,
   runParity,
+  findHotspots,
+  pageUrl,
 } from './parity.mjs';
 
 function solid(width, height, [r, g, b]) {
@@ -750,4 +752,73 @@ test('runParity: bez argumentów wypisuje pomoc i kończy kodem 1', async () => 
   const code = await runParity([], { ...io });
   assert.equal(code, 1);
   assert.match(io.out.log.join('\n'), /Użycie: npm run parity/);
+});
+
+// Skupiska różnic: próg 2% liczony dla całej sekcji rozmywa błąd małego
+// elementu (6 pigułek przesuniętych o 20 px dało 0,43%). Kafelek, w którym
+// różni się duża część pikseli, jest błędem niezależnie od średniej.
+
+test('findHotspots znajduje kafelek z dużą lokalną różnicą', () => {
+  const ref = solid(200, 100, [255, 255, 255]);
+  const act = solid(200, 100, [255, 255, 255]);
+  for (let y = 10; y < 40; y++) {
+    for (let x = 120; x < 160; x++) {
+      const i = (y * 200 + x) * 4;
+      act.data[i] = 0;
+      act.data[i + 1] = 0;
+      act.data[i + 2] = 0;
+    }
+  }
+  const result = comparePng(buf(ref), buf(act));
+  assert.ok(result.diffRatio < 0.1);
+  const hotspots = findHotspots(result.diff, { tile: 48, minRatio: 0.2 });
+  assert.ok(hotspots.length >= 1);
+  assert.ok(hotspots.some((h) => h.x <= 120 && h.x + 48 > 120 && h.y === 0));
+});
+
+test('findHotspots milczy przy rozproszonym, drobnym szumie', () => {
+  const ref = solid(96, 96, [255, 255, 255]);
+  const act = solid(96, 96, [255, 255, 255]);
+  for (let i = 0; i < 96 * 96; i += 37) {
+    act.data[i * 4] = 0;
+  }
+  const result = comparePng(buf(ref), buf(act));
+  assert.deepEqual(findHotspots(result.diff, { tile: 48, minRatio: 0.2 }), []);
+});
+
+test('decideOutcome kończy kodem 1, gdy są skupiska różnic, mimo niskiej średniej', () => {
+  const outcome = decideOutcome({
+    sizeMismatch: false,
+    diffRatio: 0.004,
+    hotspots: [{ x: 256, y: 336, width: 48, height: 48, ratio: 0.41 }],
+  });
+  assert.equal(outcome.exitCode, 1);
+  assert.match(outcome.message, /skupisk/);
+  assert.match(outcome.message, /256, 336/);
+});
+
+// Sekcja zaczynająca się na ułamkowym y (np. y = 4144,625 po sekcji o wysokości
+// 1350,625) daje zrzut o 1 px wyższy, choć jej wysokość jest poprawna.
+// Różnica ≤ 1 px w każdej osi to zaokrąglenie zrzutu, nie rozjazd układu.
+test('comparePng przycina różnicę wymiarów do 1 px zamiast zgłaszać rozjazd', () => {
+  const ref = buf(solid(10, 10, [255, 255, 255]));
+  const act = buf(solid(10, 11, [255, 255, 255]));
+  const result = comparePng(ref, act);
+  assert.equal(result.sizeMismatch, false);
+  assert.equal(result.subpixelTrim, true);
+  assert.equal(result.diffPixels, 0);
+});
+
+test('comparePng nadal zgłasza rozjazd większy niż 1 px', () => {
+  const result = comparePng(buf(solid(10, 10, [255, 255, 255])), buf(solid(10, 12, [255, 255, 255])));
+  assert.equal(result.sizeMismatch, true);
+});
+
+// Podstrony: sekcja leży pod innym adresem niż strona główna. Pole "path"
+// w nodes.json wskazuje ścieżkę względem adresu lokalnego.
+test('pageUrl składa adres z bazy i pola path wpisu', () => {
+  assert.equal(pageUrl('http://localhost:8888', { path: '/oferta/' }), 'http://localhost:8888/oferta/');
+  assert.equal(pageUrl('http://localhost:8888/', { path: 'oferta/' }), 'http://localhost:8888/oferta/');
+  assert.equal(pageUrl('http://localhost:8888', {}), 'http://localhost:8888');
+  assert.equal(pageUrl('http://localhost:8888', undefined), 'http://localhost:8888');
 });

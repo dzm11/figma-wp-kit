@@ -7,6 +7,11 @@
  * Dopóki partiala nie ma, renderuje się minimalny nagłówek zastępczy,
  * żeby pusty motyw dało się otworzyć bez błędów.
  *
+ * Skrypt w <head> dodaje klasę fwp-js na <html> przed pierwszym malowaniem:
+ * CSS rozróżnia stan z JS i bez niego (np. :root:not(.fwp-js) w layout.css)
+ * bez mignięcia układu. Stan bez JS to ten, w którym skrypty sekcji nic nie
+ * zmieniły — np. przyklejony nagłówek się nie zwija.
+ *
  * @package fwp-motyw
  */
 
@@ -17,6 +22,7 @@ defined( 'ABSPATH' ) || exit;
 <head>
 	<meta charset="<?php bloginfo( 'charset' ); ?>">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<script>document.documentElement.classList.add( 'fwp-js' );</script>
 	<?php wp_head(); ?>
 </head>
 <body <?php body_class(); ?>>

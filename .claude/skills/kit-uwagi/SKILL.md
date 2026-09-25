@@ -11,8 +11,9 @@ uwaga niesie selektor, pozycję i kontekst elementu.
 
 ## Jak właściciel zgłasza uwagi
 
-Pasek jest w prawym dolnym rogu strony na `http://localhost:8888`, tylko
-lokalnie. Nie ma go? Zbuduj go: `npm run agentation`.
+Pasek jest w prawym dolnym rogu strony na `http://localhost:8888` oraz na
+podglądzie w środowisku `staging` (zob. `kit-wdrozenie`), nigdy na produkcji.
+Nie ma go? Zbuduj go: `npm run agentation`.
 
 1. Kliknij ikonę paska, potem element na stronie.
 2. Wpisz uwagę, np. „za duży odstęp od góry” albo „ma być jak w Figmie”.

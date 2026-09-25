@@ -143,3 +143,21 @@ function fwp_img( $path, $alt = '', $attrs = array() ) {
 	// Każdy człon jest escapowany wyżej, więc wynik można bezpiecznie wypisać.
 	return sprintf( '<picture>%s<img %s></picture>', $source, $img_attrs );
 }
+
+/**
+ * Adres opublikowanej strony WordPressa po ścieżce slugów (np. 'uslugi/cennik').
+ *
+ * Pusty, gdy strony nie ma albo nie jest opublikowana — link może wtedy
+ * zniknąć albo dostać stan nieaktywny, zamiast prowadzić na 404. Przydatne
+ * w zapasowym menu nagłówka i stopki, dopóki menu WP nie jest przypisane,
+ * i w linkach między podstronami zapisanych w treści z makiety.
+ * Wynik nie jest escapowany — przepuść go przez esc_url().
+ *
+ * @param string $path Ścieżka strony (slugi rozdzielone ukośnikiem).
+ * @return string Adres albo pusty ciąg.
+ */
+function fwp_page_url( $path ) {
+	$page = get_page_by_path( trim( (string) $path, '/' ) );
+
+	return ( $page && 'publish' === $page->post_status ) ? (string) get_permalink( $page ) : '';
+}

@@ -1,6 +1,6 @@
 {
   "name": "figma-wp-kit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Zestaw startowy do przenoszenia stron z Figmy do WordPressa",
@@ -19,6 +19,8 @@
     "tokens": "node tools/tokens-to-css.mjs",
     "figma:ref": "node tools/figma-export.mjs",
     "figma:assets": "node tools/figma-assets.mjs",
+    "figma:fills": "node tools/figma-fills.mjs",
+    "icons": "node tools/icons-sprite.mjs",
     "images": "node tools/optimize-images.mjs",
     "fonts": "node tools/fetch-fonts.mjs",
     "parity": "node tools/parity.mjs",

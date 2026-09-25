@@ -15,6 +15,8 @@
  *    identyczną geometrię, więc dostają jeden komplet tokenów bez `-weight`;
  *    wagę niesie osobny, współdzielony token `--fwp-font-*`. Inaczej każdy
  *    rozmiar tekstu miałby cztery identyczne komplety tokenów.
+ * 4. Interlinię tuż pod pełnym pikselem (< 0,01 px) generator domyka w górę
+ *    do 9 miejsc — przeglądarka zaokrągla wiersz w dół do 1/64 px.
  */
 
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
@@ -98,8 +100,15 @@ export function validateTokens(tokens) {
     if (!HEX.test(p.hex ?? '')) problems.push(`primitives[${i}] "${p.name}": "hex" nie jest kolorem #rrggbb(aa).`);
   });
 
+  const primitiveSlugs = new Set(tokens.primitives.map((p) => slugify(p.name)));
   tokens.semantic.forEach((s, i) => {
     if (!s.name) problems.push(`semantic[${i}]: brak "name".`);
+    if (s.name && primitiveSlugs.has(slugify(s.name))) {
+      problems.push(
+        `semantic[${i}] "${s.name}": ta sama nazwa co prymityw, w CSS powstałby cykl var(). ` +
+          'Zmień nazwę prymitywu (np. prefiks "base/").'
+      );
+    }
     if (!s.alias && !HEX.test(s.hex ?? '')) {
       problems.push(`semantic[${i}] "${s.name}": potrzebny "alias" (nazwa prymitywu) albo "hex".`);
     }
@@ -135,26 +144,77 @@ export function validateTokens(tokens) {
     problems.push('layout.space musi być tablicą liczb (px).');
   }
 
+  // radius i shadow są opcjonalne: starsze pliki tokens.json ich nie mają.
+  for (const [key, isValid, expected] of [
+    ['radius', Number.isFinite, 'liczbą (px)'],
+    ['shadow', (v) => typeof v === 'string' && v.trim() !== '', 'niepustą wartością box-shadow'],
+  ]) {
+    if (tokens[key] == null) continue;
+    if (!Array.isArray(tokens[key])) {
+      problems.push(`"${key}" musi być tablicą.`);
+      continue;
+    }
+    tokens[key].forEach((entry, i) => {
+      if (!entry.name) problems.push(`${key}[${i}]: brak "name".`);
+      if (!isValid(entry.value)) problems.push(`${key}[${i}] "${entry.name}": "value" musi być ${expected}.`);
+    });
+  }
+
   return problems;
 }
 
 /**
  * Interlinia jest bezmianowym mnożnikiem: rozmiar × mnożnik daje wysokość
- * wiersza w px. Figma podaje interlinię w pikselach, więc mnożnik zaokrąglony
- * do zbyt małej liczby miejsc (20/14 → 1.429) daje wiersz o ułamek piksela
- * za wysoki — niewidoczne w tokens.css, ale kumuluje się w wielowierszowym
- * tekście i przesuwa wszystko pod nim. Zwraca ostrzeżenia, nie błędy.
+ * wiersza w px. Figma podaje interlinię w pikselach, a mnożnik z dzielenia
+ * rzadko jest skończonym ułamkiem (29/24 = 1.2083333…). Przeglądarka liczy
+ * wysokość wiersza w LayoutUnit (1/64 px) i zaokrągla W DÓŁ, więc
+ * 24 × 1.208333 = 28.999992 daje wiersz 28.984 px zamiast 29 — niewidoczne
+ * w tokens.css, ale kumuluje się w wielowierszowym tekście i przesuwa
+ * wszystko pod nim.
  */
-export function lineHeightWarnings(typography, tolerancePx = 0.001) {
+
+// Iloczyn bliżej pełnego piksela niż ten próg to zaokrąglony mnożnik, nie
+// zamierzony ułamkowy wiersz — generator poprawia go sam.
+const LINE_HEIGHT_SNAP_PX = 0.01;
+const LINE_HEIGHT_DIGITS = 1e9;
+
+/**
+ * Gdy rozmiar × interlinia różni się od pełnego piksela n o mniej niż
+ * LINE_HEIGHT_SNAP_PX, zwraca mnożnik ceil(n / rozmiar · 1e9) / 1e9: dziewięć
+ * miejsc, zaokrąglone w górę, więc rozmiar × wynik ≥ n i wiersz nie traci
+ * 1/64 px. Iloczyn równy n albo odległy o więcej niż próg — bez zmian.
+ */
+export function snapLineHeight(size, lineHeight, tolerancePx = LINE_HEIGHT_SNAP_PX) {
+  const product = size * lineHeight;
+  const rounded = Math.round(product);
+  const delta = Math.abs(product - rounded);
+  if (rounded <= 0 || delta === 0 || delta >= tolerancePx) {
+    return lineHeight;
+  }
+  // Iloraz bywa „prawie całkowity” przez błąd zmiennoprzecinkowy
+  // (60 / 48 · 1e9 = 1250000000.0000002) — wtedy ceil dodałby fałszywą jedynkę.
+  const scaled = (rounded * LINE_HEIGHT_DIGITS) / size;
+  const nearest = Math.round(scaled);
+  const units = Math.abs(scaled - nearest) < 1e-6 ? nearest : Math.ceil(scaled);
+  return parseFloat((units / LINE_HEIGHT_DIGITS).toFixed(9));
+}
+
+/**
+ * Ostrzeżenia dla interlinii, której generator nie poprawia sam: iloczyn
+ * odległy od pełnego piksela o co najmniej LINE_HEIGHT_SNAP_PX. Bywa
+ * zamierzony (interlinia w procentach: 72px × 110% = 79.2px), więc to
+ * informacja, nie błąd.
+ */
+export function lineHeightWarnings(typography, tolerancePx = LINE_HEIGHT_SNAP_PX) {
   const warnings = [];
   for (const t of typography) {
     const product = t.size * t.lineHeight;
     const rounded = Math.round(product);
-    if (Math.abs(product - rounded) > tolerancePx) {
+    if (Math.abs(product - rounded) >= tolerancePx) {
       warnings.push(
         `"${t.name}": ${t.size}px × ${t.lineHeight} = ${parseFloat(product.toFixed(4))}px ` +
-          `(zapewne miało być ${rounded}px — podaj lineHeight z większą dokładnością, np. ` +
-          `${parseFloat((rounded / t.size).toFixed(6))}).`
+          `— ułamkowy wiersz. Sprawdź w Figmie, czy to zamierzone; jeśli miało być ${rounded}px, ` +
+          `wpisz lineHeight ${parseFloat((rounded / t.size).toFixed(6))} (generator domknie go do piksela).`
       );
     }
   }
@@ -246,7 +306,7 @@ export function buildCss(tokens) {
     const lines = [
       `--fwp-t-${key}-family: var(${familyToken(t.family)});`,
       `--fwp-t-${key}-size: ${pxToRem(t.size)};`,
-      `--fwp-t-${key}-lh: ${t.lineHeight};`,
+      `--fwp-t-${key}-lh: ${snapLineHeight(t.size, t.lineHeight)};`,
       `--fwp-t-${key}-ls: ${t.letterSpacing}em;`,
     ];
     // Jeden wariant — waga należy do stylu. Kilka wariantów — waga jest wyborem
@@ -269,6 +329,14 @@ export function buildCss(tokens) {
     `--fwp-container: ${tokens.layout.container}px;`,
     `--fwp-gutter: ${tokens.layout.gutter}px;`,
     `--fwp-wrapper: ${tokens.layout.wrapper}px;`,
+  ];
+
+  // Promienie w px, jak w Figmie: nie skalują się z rozmiarem pisma.
+  const radius = (tokens.radius ?? []).map((r) => `--fwp-${slugify(r.name)}: ${r.value}px;`);
+  const shadow = (tokens.shadow ?? []).map((s) => `--fwp-shadow-${slugify(s.name)}: ${s.value.trim()};`);
+  const effects = [
+    ...(radius.length ? ['', block('Promienie', radius)] : []),
+    ...(shadow.length ? ['', block('Cienie', shadow)] : []),
   ];
 
   const source = tokens.meta?.generatedAt
@@ -295,6 +363,7 @@ export function buildCss(tokens) {
     block('Odstępy', space),
     '',
     block('Layout', layout),
+    ...effects,
     '}',
     '',
   ].join('\n');

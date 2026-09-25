@@ -6,8 +6,12 @@
  * i skopiować ustrukturyzowany opis (selektor, pozycja, kontekst) do wklejenia
  * agentowi. Bundle buduje `npm run agentation` z tools/agentation/.
  *
- * Ładuje się WYŁĄCZNIE w środowisku lokalnym. Poza nim nie jest w ogóle
- * rejestrowany, więc nie ma jak trafić na produkcję.
+ * Ładuje się WYŁĄCZNIE w środowisku lokalnym i na podglądzie dla klienta
+ * (WP_ENVIRONMENT_TYPE = staging), żeby właściciel mógł zgłaszać uwagi
+ * wprost na podglądzie. Na produkcji (i przy nieustawionym typie, który
+ * WordPress traktuje jako production) nie jest w ogóle rejestrowany. Uwagi
+ * zostają w przeglądarce zgłaszającego — kopiuje je i wkleja, nic nie trafia
+ * na serwer.
  *
  * @package fwp-motyw
  */
@@ -20,7 +24,7 @@ defined( 'ABSPATH' ) || exit;
  * @return void
  */
 function fwp_enqueue_agentation() {
-	if ( 'local' !== wp_get_environment_type() ) {
+	if ( ! in_array( wp_get_environment_type(), array( 'local', 'staging' ), true ) ) {
 		return;
 	}
 

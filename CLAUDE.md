@@ -87,16 +87,18 @@ npm run wp -- <args>       # WP-CLI w kontenerze
 npm run tokens             # docs/figma/tokens.json -> theme/assets/css/tokens.css
 npm run figma:assets -- <nodeId...> --format svg|png   # grafiki z Figmy (REST)
 npm run figma:ref -- <slug> [--mobile]                 # referencje do porównań
+npm run figma:fills -- <imageRef[=nazwa]…> --out design-assets/raw/photos  # oryginały zdjęć
+npm run icons              # sprite theme/assets/img/icons.svg z design-assets/raw/icons (currentColor)
 npm run images             # optymalizacja obrazów (WebP + oryginał)
 npm run fonts              # fonty self-hosted
 npm run parity -- <slug> [--mobile]                    # porównanie z makietą
-npm run agentation         # buduje pasek uwag (tylko lokalnie)
+npm run agentation         # buduje pasek uwag (lokalnie i na podglądzie staging)
 npm run php:install        # jednorazowo: PHPCS przez composer w kontenerze
 npm run lint:php           # PHPCS motywu, musi dawać 0 błędów
 npm run lint:mu            # PHPCS pluginów mu
 npm run test:unit
 npm run test:e2e -- <plik> --project=desktop
-npm run deploy -- theme|mu|media|content|all
+npm run deploy -- theme|mu|media|content|all|agentation
 ```
 
 **Docker na macOS z Apple Silicon:** jeśli `wp-env start` pada na braku
@@ -150,8 +152,12 @@ margin-inline: auto;
 - **Nie zagnieżdżaj kontenera we wrapperze.** Gutter odjąłby się dwa razy.
 - **Tło na pełną szerokość kładź na rodzicu**, nie na wrapperze.
 - `.{prefiks}-full-bleed` wyprowadza element na pełną szerokość viewportu.
-- Na `html` jest `overflow-x: clip`, nie `hidden`. `clip` nie psuje
-  `position: sticky` u potomków.
+- Na `html` **i `body`** jest `overflow-x: clip`, nie `hidden`. `clip` nie psuje
+  `position: sticky` u potomków. Sam `html` przenosi `clip` na okno jako
+  `hidden`, a wtedy `scrollTo`, kotwica i fokus przesuwają stronę w bok.
+- Podstrony: `theme/page.php` renderuje sekcje z listy
+  `theme/inc/views/{widok}.php` (jeden plik na widok), widok ustala
+  `{prefiks}_current_view()`. Szczegóły w `kit-sekcje` i `kit-cms`.
 
 ### Wierność: dwa tory
 
@@ -220,7 +226,12 @@ Każdy wpis to jedna linia i powód.
   **kontrakt sekcji z liczbami**. Agent bez liczb zgaduje, a zgadnięte liczby
   były błędne za każdym razem.
 - Agent uruchamia **wyłącznie swój pomiar i swoje `parity`**. Nigdy
-  `npm run test:e2e` bez argumentu.
+  `npm run test:e2e` bez argumentu. Playwright agenta: `--workers=1–2`.
+  Pełny zestaw raz, u koordynatora, z `--workers=4`.
+- WP-CLI agenta tylko przez `npm run wp` albo `npx wp-env run`. **Nigdy**
+  `wp-env start`, `stop`, `status`, `destroy`: przepisują plik stanu i blokują
+  WP-CLI wszystkim. Obejście: `docker exec <kontener-cli> wp …`.
+- Skrypty pomocnicze agenta w podkatalogu scratchpada nazwanym jego slugiem.
 - Zakazane są polecenia git zmieniające stan (`add`, `commit`, `checkout`,
   `stash`, `reset`, `clean`). `status`, `diff` i `log` wolno.
 - Commituje koordynator, po własnej weryfikacji zrzutem.
